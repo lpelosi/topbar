@@ -1,6 +1,6 @@
 -- addons/topbar/addon.lua
-_addon.name, _addon.author, _addon.version = 'topbar','lanzone','1.0'
-_addon.desc = 'Top HUD bar: main/sub jobs, levels, EXP to next'
+_addon.name, _addon.author, _addon.version = 'topbar','lanzone','1.1'
+_addon.desc = 'Top HUD bar: main/sub jobs, levels, EXP to next, stats modifiers.'
 
 local JOB_ABBR={[0]='NON',[1]='WAR',[2]='MNK',[3]='WHM',[4]='BLM',[5]='RDM',[6]='THF',[7]='PLD',[8]='DRK',
 [9]='BST',[10]='BRD',[11]='RNG',[12]='SAM',[13]='NIN',[14]='DRG',[15]='SMN',[16]='BLU',[17]='COR',
@@ -18,6 +18,23 @@ local function init_font()
   txt:SetColor(0xFFFFFFFF); txt:SetPositionX(state.x); txt:SetPositionY(state.y); txt:SetVisibility(true)
 end
 
+local function stringify_mods(v)
+  local t = type(v)
+  if t == 'nil' then return 'n/a' end
+  if t == 'number' or t == 'string' or t == 'boolean' then return tostring(v) end
+  if t == 'table' then
+    local parts, count, limit = {}, 0, 12
+    for k,val in pairs(v) do
+      parts[#parts+1] = string.format('%s=%s', tostring(k), tostring(val))
+      count = count + 1
+      if count >= limit then break end
+    end
+    local s = table.concat(parts, ',')
+    return s ~= '' and s or 'n/a'
+  end
+  return 'n/a'
+end
+
 local function read_player()
   local pm = AshitaCore:GetDataManager() and AshitaCore:GetDataManager():GetPlayer()
   if not pm then return end
@@ -33,10 +50,14 @@ local function read_player()
   local need= try(pm,'GetExpNeeded')
   local tnl = (type(cur)=='number' and type(need)=='number') and math.max(0, need - cur) or nil
 
+  -- Stat modifiers
+  local mods = try(pm,'GetStatsModifiers')
+  local mods_str = stringify_mods(mods)
+
   return {
-    main=(JOB_ABBR[mj] or 'UNK')..tostring(ml),
-    sub =(JOB_ABBR[sj] or 'UNK')..tostring(sl),
-    tnl = tnl
+    main_abbr = JOB_ABBR[mj] or 'UNK', main_lv = ml,
+    sub_abbr  = JOB_ABBR[sj] or 'UNK', sub_lv  = sl,
+    tnl = tnl, mods = mods_str
   }
 end
 
@@ -57,8 +78,9 @@ ashita.register_event('command', function(cmd)
     AshitaCore:GetChatManager():AddChatMessage(207,'[topbar] position updated'); return true
   elseif a[2]=='probe' then
     local pm=AshitaCore:GetDataManager():GetPlayer()
-    for _,n in ipairs({'GetMainJob','GetSubJob','GetMainJobLevel','GetSubJobLevel','GetExpCurrent','GetExpNeeded'}) do
-      local v=try(pm,n); AshitaCore:GetChatManager():AddChatMessage(207,('[topbar] %s = %s'):format(n, v==nil and 'nil' or tostring(v)))
+    for _,n in ipairs({'GetMainJob','GetSubJob','GetMainJobLevel','GetSubJobLevel','GetExpCurrent','GetExpNeeded','GetStatsModifiers'}) do
+      local v=try(pm,n)
+      AshitaCore:GetChatManager():AddChatMessage(207,('[topbar] %s = %s'):format(n, v==nil and 'nil' or type(v)=='table' and '<table>' or tostring(v)))
     end
     return true
   end
@@ -68,6 +90,8 @@ end)
 ashita.register_event('render', function()
   if not txt then return end
   local p=read_player(); if not p then return end
-  local exp_str = p.tnl and ('EXP→'..p.tnl) or 'EXP n/a'
-  txt:SetText(string.format('%s / %s  |  %s', p.main, p.sub, exp_str))
+  local exp_str = p.tnl and ('exp '..p.tnl) or 'exp n/a'
+  local line = string.format('%s%d/%s%d | %s | stat modifiers: %s',
+    p.main_abbr, p.main_lv, p.sub_abbr, p.sub_lv, exp_str, p.mods)
+  txt:SetText(line)
 end)
