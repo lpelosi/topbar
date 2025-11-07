@@ -18,12 +18,18 @@ local function init_font()
   txt:SetColor(0xFFFFFFFF); txt:SetPositionX(state.x); txt:SetPositionY(state.y); txt:SetVisibility(true)
 end
 
+-- put near your other helpers
+local function addon_dir()
+    local src = debug.getinfo(1, 'S').source
+    if src:sub(1,1) == '@' then src = src:sub(2) end
+    return (src:match('^(.*)[/\\]') or '.')
+end
+
 local function dump_mods_to_log()
     local pm  = AshitaCore:GetDataManager():GetPlayer()
     local v   = try(pm, 'GetStatsModifiers')
-    local path = string.format('%s/topbar_stats.log', AshitaCore:GetInstallPath())
-    local f = io.open(path, 'w')
-    if not f then return end
+    local path = addon_dir() .. '/topbar_stats.log'
+    local f = io.open(path, 'w'); if not f then return end
 
     if type(v) == 'table' then
         for k,val in pairs(v) do
@@ -33,8 +39,7 @@ local function dump_mods_to_log()
         f:write(string.format('value = %s\n', tostring(v)))
     end
     f:close()
-
-    AshitaCore:GetChatManager():AddChatMessage(207, "[topbar] wrote to topbar_stats.log")
+    AshitaCore:GetChatManager():AddChatMessage(207, '[topbar] wrote: ' .. path)
 end
 
 local function stringify_mods(v)
@@ -117,15 +122,8 @@ end)
 
 ashita.register_event('command', function(cmd)
     cmd = cmd:lower()
-    if not cmd:find("^/topbar") then return false end
-
-    local a = {}
-    for w in cmd:gmatch("%S+") do a[#a+1] = w end
-
-    if a[2] == "dump" then
-        dump_mods_to_log()
-        return true
-    end
-
+    if not cmd:find('^/topbar') then return false end
+    local a = {}; for w in cmd:gmatch('%S+') do a[#a+1]=w end
+    if a[2] == 'dump' then dump_mods_to_log(); return true end
     return false
 end)
