@@ -18,6 +18,25 @@ local function init_font()
   txt:SetColor(0xFFFFFFFF); txt:SetPositionX(state.x); txt:SetPositionY(state.y); txt:SetVisibility(true)
 end
 
+local function dump_mods_to_log()
+    local pm  = AshitaCore:GetDataManager():GetPlayer()
+    local v   = try(pm, 'GetStatsModifiers')
+    local path = string.format('%s/topbar_stats.log', AshitaCore:GetInstallPath())
+    local f = io.open(path, 'w')
+    if not f then return end
+
+    if type(v) == 'table' then
+        for k,val in pairs(v) do
+            f:write(string.format('%s = %s\n', tostring(k), tostring(val)))
+        end
+    else
+        f:write(string.format('value = %s\n', tostring(v)))
+    end
+    f:close()
+
+    AshitaCore:GetChatManager():AddChatMessage(207, "[topbar] wrote to topbar_stats.log")
+end
+
 local function stringify_mods(v)
   local t = type(v)
   if t == 'nil' then return 'n/a' end
@@ -94,4 +113,19 @@ ashita.register_event('render', function()
   local line = string.format('%s%d/%s%d | %s | stat modifiers: %s',
     p.main_abbr, p.main_lv, p.sub_abbr, p.sub_lv, exp_str, p.mods)
   txt:SetText(line)
+end)
+
+ashita.register_event('command', function(cmd)
+    cmd = cmd:lower()
+    if not cmd:find("^/topbar") then return false end
+
+    local a = {}
+    for w in cmd:gmatch("%S+") do a[#a+1] = w end
+
+    if a[2] == "dump" then
+        dump_mods_to_log()
+        return true
+    end
+
+    return false
 end)
