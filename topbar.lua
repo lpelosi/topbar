@@ -45,11 +45,55 @@ local function init_font()
     txt:SetColor(0xFFFFFFFF); txt:SetPositionX(state.x); txt:SetPositionY(state.y); txt:SetVisibility(true)
 end
 
--- put near your other helpers
 local function addon_dir()
     local src = debug.getinfo(1, 'S').source
-    if src:sub(1, 1) == '@' then src = src:sub(2) end
+    if src:sub(1,1) == '@' then src = src:sub(2) end
     return (src:match('^(.*)[/\\]') or '.')
+end
+
+local function write_lines(path, lines)
+    local f = io.open(path, 'w'); if not f then return end
+    for _,s in ipairs(lines) do f:write(s, '\n') end
+    f:close()
+    AshitaCore:GetChatManager():AddChatMessage(207, '[topbar] wrote: '..path)
+end
+
+local function scan_player_methods()
+    local out, pm = {}, AshitaCore:GetDataManager():GetPlayer()
+    local path = addon_dir() .. '/scan.txt'
+    if not pm then write_lines(path, {'pm = nil'}); return end
+
+    local function probe(name, ...)
+        local f = pm[name]
+        if type(f) == 'function' then
+            local ok, v = pcall(f, pm, ...)
+            local t = ok and type(v) or 'error'
+            local vs = ok and tostring(v) or ''
+            out[#out+1] = string.format('%-22s -> %s%s', name, t, vs ~= '' and (' : '..vs) or '')
+        else
+            out[#out+1] = string.format('%-22s -> %s', name, type(f))
+        end
+    end
+
+    local names = {
+        'GetMainJob','GetSubJob','GetMainJobLevel','GetSubJobLevel',
+        'GetExpCurrent','GetExpNeeded','GetExpToLevel','GetExpToNext',
+        'GetStatsModifiers','GetStatModifiers','GetStats','GetStat',
+        'GetBaseStat','GetBaseStats','GetSTR','GetDEX','GetVIT','GetAGI','GetINT','GetMND','GetCHR'
+    }
+    for _,n in ipairs(names) do probe(n) end
+
+    local mt = getmetatable(pm)
+    if mt and type(mt.__index) == 'table' then
+        out[#out+1] = ''
+        out[#out+1] = '[__index keys]'
+        for k,_ in pairs(mt.__index) do out[#out+1] = tostring(k) end
+    else
+        out[#out+1] = ''
+        out[#out+1] = '[__index not enumerable]'
+    end
+
+    write_lines(path, out)
 end
 
 local function dump_mods_to_log()
@@ -115,52 +159,6 @@ local function read_player()
     }
 end
 
-local function write_lines(path, lines)
-    local f = io.open(path, 'w'); if not f then return end
-    for _, s in ipairs(lines) do f:write(s, '\n') end
-    f:close()
-    AshitaCore:GetChatManager():AddChatMessage(207, '[topbar] wrote: ' .. path)
-end
-
-local function scan_player_methods()
-    local out, pm = {}, AshitaCore:GetDataManager():GetPlayer()
-    if not pm then
-        write_lines('addons/topbar/scan.txt', { 'pm = nil' }); return
-    end
-
-    local function probe(name, ...)
-        local f = pm[name]
-        if type(f) == 'function' then
-            local ok, v = pcall(f, pm, ...)
-            out[#out + 1] = string.format('%-22s -> %s%s',
-                name,
-                (ok and type(v) or 'error'),
-                (ok and (' : ' .. tostring(v)) or ''))
-        else
-            out[#out + 1] = string.format('%-22s -> %s', name, type(f))
-        end
-    end
-
-    -- Known job/level + EXP + candidate stats APIs
-    local names = {
-        'GetMainJob', 'GetSubJob', 'GetMainJobLevel', 'GetSubJobLevel',
-        'GetExpCurrent', 'GetExpNeeded', 'GetExpToLevel', 'GetExpToNext',
-        'GetStatsModifiers', 'GetStatModifiers', 'GetStats', 'GetStat',
-        'GetBaseStat', 'GetBaseStats', 'GetSTR', 'GetDEX', 'GetVIT', 'GetAGI', 'GetINT', 'GetMND', 'GetCHR'
-    }
-    for _, n in ipairs(names) do probe(n) end
-
-    local mt = getmetatable(pm)
-    if mt and type(mt.__index) == 'table' then
-        out[#out + 1] = '\n[__index keys]'
-        for k, _ in pairs(mt.__index) do out[#out + 1] = tostring(k) end
-    else
-        out[#out + 1] = '\n[__index not enumerable]'
-    end
-
-    write_lines('addons/topbar/scan.txt', out)
-end
-
 ashita.register_event('command', function(cmd)
     cmd = cmd:lower()
     if not cmd:find('^/topbar') then return false end
@@ -207,6 +205,14 @@ ashita.register_event('render', function()
     local line = string.format('%s%d/%s%d | %s | stat modifiers: %s',
         p.main_abbr, p.main_lv, p.sub_abbr, p.sub_lv, exp_str, p.mods)
     txt:SetText(line)
+end)
+
+ashita.register_event('command', function(cmd)
+    cmd = cmd:lower()
+    if not cmd:find('^/topbar') then return false end
+    local a = {}; for w in cmd:gmatch('%S+') do a[#a+1]=w end
+    if a[2] == 'scan' then scan_player_methods(); return true end
+    return false
 end)
 
 ashita.register_event('command', function(cmd)
