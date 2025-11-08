@@ -39,10 +39,10 @@ local function init_font()
   if txt then return end
   local fm = AshitaCore:GetFontManager(); if not fm then return end
   txt = fm:Create('topbar_text')
-  txt:SetFontFamily('Consolas')
-  txt:SetFontHeight(14)
+  txt:SetFontFamily('Verdana')
+  txt:SetFontHeight(10)
   txt:SetBold(true)
-  txt:SetColor(0xFFFFFFFF)
+  txt:SetColor(0xFF0080)
   txt:SetPositionX(state.x)
   txt:SetPositionY(state.y)
   txt:SetVisibility(true)
@@ -184,7 +184,7 @@ ashita.register_event('render', function()
   if not txt then return end
   local p = read_player(); if not p then return end
   local exp_str = p.tnl and ('exp ' .. p.tnl) or 'exp n/a'
-  local line = string.format('%s%d/%s%d | %s | stat modifiers: %s',
+  local line = string.format('%s%d/%s%d | %s ',
     p.main_abbr, p.main_lv, p.sub_abbr, p.sub_lv, exp_str, p.mods)
   txt:SetText(line)
 end)
